@@ -1,0 +1,1 @@
+this is dictionary manager extension to allow you to save all notes passwords and many more things
