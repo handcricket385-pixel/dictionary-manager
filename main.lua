@@ -13,6 +13,8 @@ import "java.lang.Runnable"
 import "android.net.Uri"
 import "android.os.StrictMode"
 import "java.lang.Class"
+import "java.util.Arrays"
+import "java.util.Comparator"
 
 local ctx = activity or service
 
@@ -345,8 +347,23 @@ function showInternalFilePicker(currentPath)
   end
   
   if filesList then
-    for i=0, #filesList-1 do
-      local f = filesList[i]
+    -- Convert Java array to Lua table for perfect A-Z and type sorting
+    local sortedList = {}
+    for i = 0, #filesList - 1 do
+      table.insert(sortedList, filesList[i])
+    end
+    
+    table.sort(sortedList, function(a, b)
+      if a.isDirectory() and not b.isDirectory() then
+        return true
+      elseif not a.isDirectory() and b.isDirectory() then
+        return false
+      else
+        return tostring(a.getName()):lower() < tostring(b.getName()):lower()
+      end
+    end)
+    
+    for _, f in ipairs(sortedList) do
       local name = tostring(f.getName())
       local isDir = f.isDirectory()
       
