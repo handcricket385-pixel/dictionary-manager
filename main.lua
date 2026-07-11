@@ -8,10 +8,20 @@ import "cjson"
 import "java.io.File"
 import "java.lang.String"
 import "android.graphics.drawable.GradientDrawable"
+import "android.os.Handler"
+import "java.lang.Runnable"
+import "android.net.Uri"
+import "android.os.StrictMode"
+import "java.lang.Class"
 
 local ctx = activity or service
 
+local StrictModeVmPolicyBuilder = Class.forName("android.os.StrictMode$VmPolicy$Builder")
+local builder = StrictModeVmPolicyBuilder.newInstance()
+StrictMode.setVmPolicy(builder.build())
+
 local dataPath = "/storage/emulated/0/Dictionary_Pro_Advanced.json"
+local ed1, ed2
 
 function dip2px(dp)
   return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, ctx.getResources().getDisplayMetrics())
@@ -64,7 +74,7 @@ function getRoundedBg(colorStr, radius, strokeColor)
   return drawable
 end
 
-function showDetailDialog(entry, index, currentDialog)
+function showDetailDialog(entry, index)
   local detailLayout = LinearLayout(ctx)
   detailLayout.setOrientation(1)
   detailLayout.setPadding(dip2px(20), dip2px(15), dip2px(20), dip2px(15))
@@ -117,15 +127,21 @@ function showDetailDialog(entry, index, currentDialog)
   local shareBtn = Button(ctx)
   shareBtn.setText("Share")
   shareBtn.setTextSize(12)
-  shareBtn.setBackgroundColor(Color.parseColor("#27AE60"))
+  shareBtn.setBackgroundColor(Color.parseColor("#25D366"))
   shareBtn.setTextColor(Color.WHITE)
   shareBtn.setPadding(dip2px(12), dip2px(6), dip2px(12), dip2px(6))
   shareBtn.setLayoutParams(LinearLayout.LayoutParams(-2, -2))
   shareBtn.onClick = function()
+    if detailDialog then detailDialog.dismiss() end
+    if mainDialog then mainDialog.dismiss() end
+    
     local shareIntent = Intent(Intent.ACTION_SEND)
     shareIntent.setType("text/plain")
-    shareIntent.putExtra(Intent.EXTRA_TEXT, entry.word .. "\n\n" .. entry.meaning)
-    ctx.startActivity(Intent.createChooser(shareIntent, "Share"))
+    shareIntent.putExtra(Intent.EXTRA_TEXT, "Title: " .. entry.word .. "\n\nContent: " .. entry.meaning)
+    
+    local chooser = Intent.createChooser(shareIntent, "Share via")
+    chooser.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    ctx.startActivity(chooser)
   end
   btnLayout.addView(shareBtn)
   
@@ -137,7 +153,7 @@ function showDetailDialog(entry, index, currentDialog)
   editBtn.setPadding(dip2px(12), dip2px(6), dip2px(12), dip2px(6))
   editBtn.setLayoutParams(LinearLayout.LayoutParams(-2, -2))
   editBtn.onClick = function()
-    if currentDialog then currentDialog.dismiss() end
+    if detailDialog then detailDialog.dismiss() end
     showAddEntryDialog(entry, index)
   end
   btnLayout.addView(editBtn)
@@ -155,8 +171,15 @@ function showDetailDialog(entry, index, currentDialog)
       .setPositiveButton("Delete", function()
         table.remove(dictData.entries, index)
         saveData(dictData)
-        refreshEntriesList(nil, "All")
-        if currentDialog then currentDialog.dismiss() end
+        local selectedCat = "All"
+        if categorySpinner then
+          selectedCat = dictData.categories[categorySpinner.getSelectedItemPosition() + 1]
+        end
+        local searchText = ""
+        if searchInput then
+          searchText = tostring(searchInput.getText())
+        end
+        refreshEntriesList(searchText, selectedCat)
         showToast("Entry deleted")
       end)
       .setNegativeButton("Cancel", nil)
@@ -166,8 +189,9 @@ function showDetailDialog(entry, index, currentDialog)
   
   detailLayout.addView(btnLayout)
   
-  local dialog = LuaDialog(ctx).setTitle(entry.word).setView(detailLayout).setPositiveButton("Close", nil).show()
-  return dialog
+  detailDialog = LuaDialog(ctx).setTitle(entry.word).setView(detailLayout).setPositiveButton("Close", nil).show()
+  
+  return detailDialog
 end
 
 function refreshEntriesList(filterQuery, filterCategory)
@@ -186,44 +210,22 @@ function refreshEntriesList(filterQuery, filterCategory)
       card.setLayoutParams(params)
       card.setPadding(dip2px(15), dip2px(15), dip2px(15), dip2px(15))
       
-      local headerRow = LinearLayout(ctx)
-      headerRow.setOrientation(0)
-      
       local titleTxt = TextView(ctx)
       titleTxt.setText(entry.word .. " (" .. entry.category .. ")")
       titleTxt.setTextSize(18)
       titleTxt.setTypeface(Typeface.DEFAULT_BOLD)
       titleTxt.setTextColor(Color.parseColor("#2C3E50"))
-      titleTxt.setLayoutParams(LinearLayout.LayoutParams(0, -2, 1))
       titleTxt.onClick = function()
         showDetailDialog(entry, i)
       end
-      headerRow.addView(titleTxt)
+      card.addView(titleTxt)
       
-      card.addView(headerRow)
-      
-      card.onLongClick = function()
-        local options = {"Edit", "Delete", "Share"}
-        LuaDialog(ctx).setTitle("Actions").setItems(String(options), function(d, idx)
-           if idx == 0 then showAddEntryDialog(entry, i)
-           elseif idx == 1 then
-             table.remove(dictData.entries, i)
-             saveData(dictData)
-             refreshEntriesList(nil, "All")
-             showToast("Entry deleted")
-           elseif idx == 2 then
-             local s = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, entry.word .. "\n\n" .. entry.meaning)
-             ctx.startActivity(Intent.createChooser(s, "Share"))
-           end
-        end).show()
-        return true
-      end
       entryContainer.addView(card)
     end
   end
 end
 
-function showAddEntryDialog(item, index)
+function showAddEntryDialog(item, index, defaultTitle, defaultMeaning)
   local lay = LinearLayout(ctx)
   lay.setOrientation(1)
   lay.setPadding(dip2px(20), dip2px(10), dip2px(20), dip2px(10))
@@ -232,11 +234,11 @@ function showAddEntryDialog(item, index)
   spin.setAdapter(ArrayAdapter(ctx, android.R.layout.simple_spinner_item, String(dictData.categories)))
   lay.addView(spin)
 
-  local ed1 = EditText(ctx) 
+  ed1 = EditText(ctx) 
   ed1.setHint("Title") 
   lay.addView(ed1)
   
-  local ed2 = EditText(ctx) 
+  ed2 = EditText(ctx) 
   ed2.setHint("Content") 
   ed2.setMinLines(3) 
   lay.addView(ed2)
@@ -250,6 +252,9 @@ function showAddEntryDialog(item, index)
         break
       end
     end
+  elseif defaultTitle or defaultMeaning then
+    if defaultTitle then ed1.setText(defaultTitle) end
+    if defaultMeaning then ed2.setText(defaultMeaning) end
   end
 
   local saveDialog = LuaDialog(ctx).setTitle("Save Entry").setView(lay)
@@ -282,6 +287,114 @@ function showAddEntryDialog(item, index)
   saveDialog.show()
 end
 
+function handleSelectedInternalFile(fileObj)
+  local fileName = tostring(fileObj.getName())
+  local ext = fileName:lower()
+  local fileContent = ""
+  
+  if ext:find("%.txt$") or ext:find("%.csv$") or ext:find("%.doc$") or ext:find("%.docx$") then
+    local success, content = pcall(function()
+      local f = io.open(fileObj.getAbsolutePath(), "r")
+      local txt = f:read("*a")
+      f:close()
+      return txt
+    end)
+    if success then 
+      fileContent = content 
+    else
+      fileContent = "Error reading file content."
+    end
+  else
+    showToast("Unsupported file type")
+    return
+  end
+  
+  showAddEntryDialog(nil, nil, fileName, fileContent)
+end
+
+function showInternalFilePicker(currentPath)
+  local pickerLayout = LinearLayout(ctx)
+  pickerLayout.setOrientation(1)
+  pickerLayout.setPadding(dip2px(15), dip2px(15), dip2px(15), dip2px(15))
+  
+  local pathTxt = TextView(ctx)
+  pathTxt.setText(currentPath)
+  pathTxt.setTextSize(14)
+  pathTxt.setTextColor(Color.parseColor("#7F8C8D"))
+  pathTxt.setPadding(0, 0, 0, dip2px(10))
+  pickerLayout.addView(pathTxt)
+  
+  local scroll = ScrollView(ctx)
+  local listContainer = LinearLayout(ctx)
+  listContainer.setOrientation(1)
+  
+  local currentDir = File(currentPath)
+  local filesList = currentDir.listFiles()
+  
+  if currentPath ~= "/storage/emulated/0" then
+    local backBtn = Button(ctx)
+    backBtn.setText(".. (Go Back)")
+    backBtn.setGravity(Gravity.LEFT or Gravity.CENTER_VERTICAL)
+    backBtn.setBackgroundColor(Color.parseColor("#BDC3C7"))
+    backBtn.setTextColor(Color.BLACK)
+    backBtn.onClick = function()
+      pickerDialog.dismiss()
+      showInternalFilePicker(tostring(currentDir.getParent()))
+    end
+    listContainer.addView(backBtn)
+  end
+  
+  if filesList then
+    for i=0, #filesList-1 do
+      local f = filesList[i]
+      local name = tostring(f.getName())
+      local isDir = f.isDirectory()
+      
+      local validFile = false
+      if isDir then
+        validFile = true
+      else
+        local lowerName = name:lower()
+        if lowerName:find("%.txt$") or lowerName:find("%.csv$") or lowerName:find("%.doc$") or lowerName:find("%.docx$") then
+          validFile = true
+        end
+      end
+      
+      if validFile then
+        local itemBtn = Button(ctx)
+        if isDir then
+          itemBtn.setText("[Folder] " .. name)
+          itemBtn.setBackgroundColor(Color.parseColor("#34495E"))
+        else
+          itemBtn.setText("[File] " .. name)
+          itemBtn.setBackgroundColor(Color.parseColor("#FFFFFF"))
+          itemBtn.setTextColor(Color.BLACK)
+        end
+        
+        itemBtn.setGravity(Gravity.LEFT or Gravity.CENTER_VERTICAL)
+        local itemParams = LinearLayout.LayoutParams(-1, -2)
+        itemParams.setMargins(0, dip2px(4), 0, dip2px(4))
+        itemBtn.setLayoutParams(itemParams)
+        
+        itemBtn.onClick = function()
+          pickerDialog.dismiss()
+          if isDir then
+            showInternalFilePicker(f.getAbsolutePath())
+          else
+            handleSelectedInternalFile(f)
+          end
+        end
+        listContainer.addView(itemBtn)
+      end
+    end
+  end
+  
+  scroll.addView(listContainer)
+  pickerLayout.addView(scroll)
+  
+  pickerDialog = LuaDialog(ctx).setTitle("Select Document").setView(pickerLayout).setNegativeButton("Cancel", nil).show()
+end
+
 function showMainDashboard()
   local root = LinearLayout(ctx)
   root.setOrientation(1)
@@ -301,12 +414,29 @@ function showMainDashboard()
   title.setLayoutParams(LinearLayout.LayoutParams(0, -2, 1))
   top.addView(title)
   
+  local rightContainer = LinearLayout(ctx)
+  rightContainer.setOrientation(1)
+  rightContainer.setGravity(Gravity.RIGHT)
+  
   local devName = TextView(ctx)
-  devName.setText("Mohsin Ali")
+  devName.setText("Developed by Mohsin Ali")
   devName.setTextColor(Color.parseColor("#BDC3C7"))
   devName.setTextSize(12)
-  top.addView(devName)
+  rightContainer.addView(devName)
   
+  local selectFileBtn = TextView(ctx)
+  selectFileBtn.setText("Select file")
+  selectFileBtn.setTextColor(Color.parseColor("#25D366"))
+  selectFileBtn.setTextSize(12)
+  selectFileBtn.setTypeface(Typeface.DEFAULT_BOLD)
+  selectFileBtn.setPadding(0, dip2px(4), 0, 0)
+  selectFileBtn.setClickable(true)
+  selectFileBtn.onClick = function()
+    showInternalFilePicker("/storage/emulated/0")
+  end
+  rightContainer.addView(selectFileBtn)
+  
+  top.addView(rightContainer)
   root.addView(top)
 
   searchInput = EditText(ctx)
@@ -372,7 +502,7 @@ function showMainDashboard()
     aboutLayout.setPadding(dip2px(20), dip2px(20), dip2px(20), dip2px(20))
     
     local devText = TextView(ctx)
-    devText.setText("Developer: Mohsin Ali")
+    devText.setText("Developer: Developed by Mohsin Ali")
     devText.setTextSize(16)
     devText.setTypeface(Typeface.DEFAULT_BOLD)
     devText.setTextColor(Color.parseColor("#2C3E50"))
@@ -404,7 +534,7 @@ function showMainDashboard()
     aboutLayout.addView(space3)
     
     local descText = TextView(ctx)
-    descText.setText("This app helps you save and manage all your important information in one place.\n\nFeatures:\n• Save passwords, contacts, notes, addresses, and more\n• Organize everything with categories\n• Search quickly by title\n• Copy, share, edit, or delete entries\n• Long press on any entry for quick actions\n\nHow to use:\n1. Select a category from the dropdown\n2. Click Add button to create new entry\n3. Enter Title and Content\n4. Click Save\n5. Tap on any title to view full details\n6. Long press for Edit/Delete/Share options")
+    descText.setText("This app helps you save and manage all your important information in one place.\n\nFeatures:\n• Save passwords, contacts, notes, addresses, and more\n• Organize everything with categories\n• Search quickly by title\n• Copy, share, edit, or delete entries\n\nHow to use:\n1. Select a category from the dropdown\n2. Click Add button to create new entry\n3. Enter Title and Content\n4. Click Save\n5. Tap on any title to view full details with Copy/Share/Edit/Delete options")
     descText.setTextSize(12)
     descText.setTextColor(Color.parseColor("#34495E"))
     descText.setPadding(0, dip2px(5), 0, 0)
