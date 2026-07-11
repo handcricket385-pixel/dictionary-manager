@@ -1,1 +1,5 @@
-this is dictionary manager extension to allow you to save all notes passwords and many more things
+Dictionary Manager Pro Version 1.1 includes the following new features:
+​Integrated Auto-Update feature to receive the latest updates directly from GitHub.
+​Enhanced app stability and overall performance.
+​Improved data management efficiency.
+​Fixed minor bugs and refined the user interface for a smoother experience.
