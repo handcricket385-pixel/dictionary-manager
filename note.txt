@@ -1,5 +1,20 @@
-Dictionary Manager Pro Version 1.1 includes the following new features:
-​Integrated Auto-Update feature to receive the latest updates directly from GitHub.
-​Enhanced app stability and overall performance.
-​Improved data management efficiency.
-​Fixed minor bugs and refined the user interface for a smoother experience.
+Dictionary Manager Pro - Version 2.0 Update Details
+​Dictionary Manager Pro v2.0
+​We are excited to announce the release of Dictionary Manager Pro Version 2.0! This update introduces major functionality improvements and core enhancements designed to make managing, protecting, and communicating your stored content seamless and efficient.
+​What's New in Version 2.0
+​Direct Developer Feedback Feature (Send Feedback)
+​You can now send feedback, feature requests, or report issues directly to the developer from within the app.
+​Located inside the About section, this tool allows you to submit your name, optional WhatsApp number, and detailed messages without switching apps.
+​Instant feedback transmission ensures your issues and suggestions are received immediately for future updates.
+​Enhanced Backup & Restore System (Import & Export)
+​Export Backup: Easily back up your complete dictionary database into a single, clean JSON file stored on your local storage. Never worry about losing your important passwords, notes, contacts, or addresses.
+​Import Data: Seamlessly import and restore your backup file with a built-in interactive file picker. This makes migrating your saved data to new devices or recovering previous setups fast and reliable.
+​UI & Performance Improvements
+​Optimized categories management and search capabilities.
+​Smoother dialog rendering and overlay handling for reliable interaction across all devices.
+​Integrated audio tutorial playback support to guide you through all core functionality step-by-step.
+​Key Features Overview
+​Categorized Content Management: Keep passwords, work notes, banking details, personal links, and custom categories structured in organized tables.
+​Instant Title Search: Real-time search filter allows you to locate any stored item in seconds.
+​Internal Document Reader: Load and attach external document content directly into new entry forms.
+​Data Privacy & Control: Complete control over adding, editing, deleting, exporting, and restoring your data on your local storage.
